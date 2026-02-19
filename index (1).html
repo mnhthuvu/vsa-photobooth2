@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>VSA Tết Photo Booth 🌺</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Space+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --red: #c0392b;
+    --deep: #6b1a1a;
+    --gold: #f0c040;
+    --gold2: #b8860b;
+    --cream: #fdf3e3;
+    --paper: #fff8ee;
+    --peach: #f9c784;
+  }
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    width: 100%; min-height: 100vh;
+    background: var(--deep);
+    font-family: 'Space Mono', monospace;
+    color: var(--cream);
+    overscroll-behavior: none;
+  }
+
+  /* ── START SCREEN ───────────────────────────────── */
+  #startScreen {
+    position: fixed; inset: 0; z-index: 100;
+    background: var(--deep);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 18px; padding: 24px;
+  }
+
+  .lanterns { font-size: 2rem; letter-spacing: .6rem; animation: sway 2s ease-in-out infinite alternate; }
+  @keyframes sway { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
+
+  .start-card {
+    border: 3px solid var(--gold);
+    padding: 44px 48px 40px;
+    text-align: center;
+    position: relative;
+    max-width: 480px; width: 100%;
+    background: rgba(100,20,20,.5);
+  }
+  .start-card .corner { position: absolute; color: var(--gold); font-size: 1rem; }
+  .start-card .corner.tl { top: 8px; left: 10px; }
+  .start-card .corner.tr { top: 8px; right: 10px; }
+  .start-card .corner.bl { bottom: 8px; left: 10px; }
+  .start-card .corner.br { bottom: 8px; right: 10px; }
+
+  .start-org  { font-size: .6rem; letter-spacing: .3em; color: var(--peach); text-transform: uppercase; margin-bottom: 8px; }
+  .start-h1   { font-family: 'Playfair Display', serif; font-size: clamp(2rem,6vw,3rem); color: var(--gold); line-height: 1.1; margin-bottom: 6px; }
+  .start-sub  { font-size: .85rem; color: var(--peach); margin-bottom: 30px; }
+
+  .btn-gold {
+    display: inline-block;
+    padding: 15px 48px;
+    background: var(--gold); color: var(--deep);
+    border: none; border-radius: 0;
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem; font-weight: 700; letter-spacing: .08em;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(240,192,64,.35);
+    -webkit-appearance: none;
+    transition: opacity .15s;
+  }
+  .btn-gold:active { opacity: .75; }
+  .btn-gold:disabled { opacity: .45; cursor: not-allowed; }
+
+  .start-note  { font-size: .58rem; color: var(--peach); opacity: .65; margin-top: 12px; letter-spacing: .06em; }
+  #errMsg      { display: none; color: #ffaaaa; font-size: .7rem; margin-top: 12px; line-height: 1.7; max-width: 300px; margin-left: auto; margin-right: auto; }
+
+  /* ── MAIN APP ───────────────────────────────────── */
+  #app { display: none; padding: 28px 16px 60px; }
+
+  .app-header { text-align: center; margin-bottom: 24px; }
+  .app-header .dec { font-size: 1.4rem; letter-spacing: .5rem; margin-bottom: 6px; }
+  .app-header h1 { font-family: 'Playfair Display', serif; font-size: clamp(1.6rem,4vw,2.8rem); color: var(--gold); text-shadow: 0 2px 12px rgba(0,0,0,.5); }
+  .app-header p  { font-size: .58rem; color: var(--peach); letter-spacing: .2em; text-transform: uppercase; margin-top: 5px; }
+
+  /* Two-column on wide, stacked on narrow */
+  .layout {
+    display: flex; gap: 32px;
+    align-items: flex-start; justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  /* ── CAMERA SIDE ── */
+  .cam-side { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+
+  .cam-wrap {
+    position: relative;
+    width: min(360px, 90vw);
+    aspect-ratio: 4/3;
+    border: 3px solid var(--gold);
+    background: #000;
+    overflow: hidden;
+    box-shadow: 6px 6px 0 var(--gold2), 0 10px 40px rgba(0,0,0,.6);
+    flex-shrink: 0;
+  }
+  .cam-wrap .lant { position: absolute; top: 7px; z-index: 3; font-size: 1.1rem; pointer-events: none; }
+  .cam-wrap .lant.l { left: 8px; }
+  .cam-wrap .lant.r { right: 8px; }
+
+  #videoEl {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+  }
+
+  #countdownEl {
+    position: absolute; inset: 0; z-index: 5;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Playfair Display', serif; font-size: 7rem; color: var(--gold);
+    text-shadow: 0 0 30px rgba(240,192,64,.9);
+    pointer-events: none; opacity: 0; transition: opacity .2s;
+  }
+
+  #flashEl {
+    position: absolute; inset: 0; background: white;
+    opacity: 0; pointer-events: none; z-index: 6;
+  }
+
+  /* Controls */
+  .controls { display: flex; flex-direction: column; align-items: center; gap: 10px; width: min(360px,90vw); }
+
+  .filter-row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+  .f-btn {
+    padding: 5px 11px;
+    border: 1.5px solid rgba(240,192,64,.6);
+    background: transparent; color: var(--gold);
+    font-family: 'Space Mono', monospace; font-size: .6rem; letter-spacing: .06em;
+    cursor: pointer; -webkit-appearance: none;
+    transition: background .15s, color .15s;
+  }
+  .f-btn.on { background: var(--gold); color: var(--deep); border-color: var(--gold); }
+
+  .progress { display: flex; gap: 6px; align-items: center; }
+  .progress span { font-size: .58rem; color: var(--peach); margin-right: 4px; }
+  .pip { width: 30px; height: 5px; background: rgba(240,192,64,.15); border: 1px solid rgba(240,192,64,.5); transition: background .3s; }
+  .pip.on { background: var(--gold); }
+
+  #shootBtn {
+    width: 100%; padding: 15px;
+    background: var(--gold); color: var(--deep);
+    border: none; font-family: 'Playfair Display', serif;
+    font-size: 1rem; font-weight: 700; letter-spacing: .06em;
+    cursor: pointer; -webkit-appearance: none;
+    box-shadow: 0 4px 16px rgba(240,192,64,.3);
+    transition: opacity .15s;
+  }
+  #shootBtn:active  { opacity: .75; }
+  #shootBtn:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* Stickers */
+  #stickerPanel {
+    display: none; flex-wrap: wrap; gap: 5px; justify-content: center;
+    padding: 10px; border: 1px dashed rgba(240,192,64,.35); width: 100%;
+  }
+  .stk-label { font-size: .52rem; letter-spacing: .15em; color: var(--gold); width: 100%; text-align: center; text-transform: uppercase; }
+  .stk-btn {
+    background: none; border: 1.5px solid transparent;
+    cursor: pointer; font-size: 1.3rem; padding: 4px;
+    -webkit-appearance: none;
+    transition: transform .15s;
+  }
+  .stk-btn:active { transform: scale(1.25); }
+  .stk-btn.on { border-color: var(--gold); background: rgba(240,192,64,.15); transform: scale(1.15); }
+
+  /* Action buttons */
+  #actionRow { display: none; gap: 10px; width: 100%; }
+  .act-btn {
+    flex: 1; padding: 11px;
+    border: 1.5px solid var(--gold); background: transparent;
+    font-family: 'Space Mono', monospace; font-size: .62rem;
+    letter-spacing: .06em; color: var(--gold);
+    cursor: pointer; -webkit-appearance: none;
+    transition: background .15s, color .15s;
+  }
+  .act-btn:active { background: var(--gold); color: var(--deep); }
+
+  /* ── STRIP SIDE ── */
+  .strip-side { position: relative; flex-shrink: 0; }
+  .strip-shadow { position: absolute; top: 8px; left: 8px; right: -8px; bottom: -8px; background: rgba(0,0,0,.25); z-index: 0; }
+
+  .strip-card {
+    background: var(--paper); padding: 14px 14px 20px; width: 190px;
+    position: relative; z-index: 1;
+    border-top: 6px solid var(--red); border-bottom: 6px solid var(--red);
+  }
+
+  .strip-head { text-align: center; padding-bottom: 10px; margin-bottom: 8px; border-bottom: 1px solid rgba(192,57,43,.25); }
+  .strip-head .vsa  { font-family: 'Playfair Display', serif; font-size: .72rem; color: var(--red); font-weight: 700; letter-spacing: .12em; }
+  .strip-head .sub  { font-size: .5rem; color: var(--gold2); letter-spacing: .18em; text-transform: uppercase; margin-top: 2px; }
+
+  .strip-photos { display: flex; flex-direction: column; gap: 6px; }
+
+  .slot {
+    width: 162px; height: 122px;
+    background: #e8d5c0;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; position: relative;
+  }
+  .slot .ph-label { font-family: 'Playfair Display', serif; font-size: 1.5rem; opacity: .22; color: var(--red); pointer-events: none; }
+  .slot img { width: 100%; height: 100%; object-fit: cover; display: none; pointer-events: none; }
+  .slot.filled img { display: block; }
+  .slot.filled .ph-label { display: none; }
+  .slot.target { cursor: crosshair; }
+
+  /* filter classes */
+  .slot img.f-none  { filter: none; }
+  .slot img.f-warm  { filter: sepia(50%) saturate(1.4) brightness(1.05); }
+  .slot img.f-soft  { filter: brightness(1.12) contrast(.88) saturate(.8); }
+  .slot img.f-vivid { filter: saturate(1.7) contrast(1.1); }
+  .slot img.f-bw    { filter: grayscale(100%); }
+  .slot img.f-cool  { filter: hue-rotate(200deg) saturate(.75) brightness(1.1); }
+
+  .stk-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+  .stk-item    { position: absolute; font-size: 1.4rem; line-height: 1; transform: translate(-50%,-50%); }
+
+  .strip-foot { margin-top: 10px; text-align: center; }
+  .strip-foot .flowers { font-size: .8rem; letter-spacing: .1rem; }
+  .strip-foot .date    { font-size: .45rem; color: var(--red); letter-spacing: .12em; display: block; margin-top: 3px; }
+
+  canvas { display: none; }
+
+  /* iPad layout tweak */
+  @media (min-width: 700px) {
+    .cam-wrap { width: 380px; }
+    .controls { width: 380px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ START SCREEN ════════════════════════════════ -->
+<div id="startScreen">
+  <div class="lanterns">🏮 🌸 🏮</div>
+
+  <div class="start-card">
+    <span class="corner tl">✦</span><span class="corner tr">✦</span>
+    <span class="corner bl">✦</span><span class="corner br">✦</span>
+    <p class="start-org">Vietnamese Student Association</p>
+    <h1 class="start-h1">Tết Photo Booth</h1>
+    <p class="start-sub">🌺 Chúc Mừng Năm Mới 🌺</p>
+    <button class="btn-gold" id="startBtn">📸 Bắt Đầu · Start</button>
+    <p class="start-note">Tap Allow when Safari asks for camera access</p>
+    <p id="errMsg"></p>
+  </div>
+
+  <div class="lanterns">🌸 🏮 🌸</div>
+</div>
+
+<!-- ═══ MAIN APP ════════════════════════════════════ -->
+<div id="app">
+  <canvas id="canvas"></canvas>
+
+  <div class="app-header">
+    <div class="dec">🏮 🌸 🏮</div>
+    <h1>VSA Tết Photo Booth</h1>
+    <p>🌺 Chúc Mừng Năm Mới · 4-Strip Photos 🌺</p>
+  </div>
+
+  <div class="layout">
+
+    <!-- Camera + controls -->
+    <div class="cam-side">
+      <div class="cam-wrap">
+        <span class="lant l">🏮</span>
+        <span class="lant r">🏮</span>
+        <video id="videoEl" autoplay playsinline muted webkit-playsinline></video>
+        <div id="countdownEl"></div>
+        <div id="flashEl"></div>
+      </div>
+
+      <div class="controls">
+
+        <div class="filter-row">
+          <button class="f-btn on" data-f="none">Original</button>
+          <button class="f-btn" data-f="warm">Warm</button>
+          <button class="f-btn" data-f="soft">Soft</button>
+          <button class="f-btn" data-f="vivid">Vivid</button>
+          <button class="f-btn" data-f="bw">B&amp;W</button>
+          <button class="f-btn" data-f="cool">Cool</button>
+        </div>
+
+        <div class="progress">
+          <span>Photos:</span>
+          <div class="pip" id="p0"></div>
+          <div class="pip" id="p1"></div>
+          <div class="pip" id="p2"></div>
+          <div class="pip" id="p3"></div>
+        </div>
+
+        <button id="shootBtn">📷 Take Photo (0 / 4)</button>
+
+        <div id="stickerPanel">
+          <span class="stk-label">✦ Pick a sticker then tap a photo ✦</span>
+          <button class="stk-btn" data-s="🏮">🏮</button>
+          <button class="stk-btn" data-s="🌸">🌸</button>
+          <button class="stk-btn" data-s="🌺">🌺</button>
+          <button class="stk-btn" data-s="✨">✨</button>
+          <button class="stk-btn" data-s="🎆">🎆</button>
+          <button class="stk-btn" data-s="💛">💛</button>
+          <button class="stk-btn" data-s="🍊">🍊</button>
+          <button class="stk-btn" data-s="🐉">🐉</button>
+          <button class="stk-btn" data-s="💕">💕</button>
+          <button class="stk-btn" data-s="⭐">⭐</button>
+          <button class="stk-btn" data-s="🎀">🎀</button>
+          <button class="stk-btn" data-s="🦋">🦋</button>
+        </div>
+
+        <div id="actionRow">
+          <button class="act-btn" id="retakeBtn">↩ Retake</button>
+          <button class="act-btn" id="saveBtn">↓ Save Strip</button>
+        </div>
+
+      </div><!-- /controls -->
+    </div><!-- /cam-side -->
+
+    <!-- Strip preview -->
+    <div class="strip-side">
+      <div class="strip-shadow"></div>
+      <div class="strip-card">
+
+        <div class="strip-head">
+          <div class="vsa">VSA · TẾT 2026</div>
+          <div class="sub">🌺 Chúc Mừng Năm Mới 🌺</div>
+        </div>
+
+        <div class="strip-photos">
+          <div class="slot" id="slot0">
+            <span class="ph-label">①</span>
+            <img id="img0">
+            <div class="stk-overlay" id="stk0"></div>
+          </div>
+          <div class="slot" id="slot1">
+            <span class="ph-label">②</span>
+            <img id="img1">
+            <div class="stk-overlay" id="stk1"></div>
+          </div>
+          <div class="slot" id="slot2">
+            <span class="ph-label">③</span>
+            <img id="img2">
+            <div class="stk-overlay" id="stk2"></div>
+          </div>
+          <div class="slot" id="slot3">
+            <span class="ph-label">④</span>
+            <img id="img3">
+            <div class="stk-overlay" id="stk3"></div>
+          </div>
+        </div>
+
+        <div class="strip-foot">
+          <div class="flowers">🏮 🌸 🏮</div>
+          <span class="date" id="stripDate"></span>
+        </div>
+
+      </div><!-- /strip-card -->
+    </div><!-- /strip-side -->
+
+  </div><!-- /layout -->
+</div><!-- /app -->
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── helpers ─────────────────────────────────────── */
+  function $(id) { return document.getElementById(id); }
+
+  /* ── state ───────────────────────────────────────── */
+  var count    = 0;      // photos taken (0-4)
+  var photos   = [];     // [{url, filter}]
+  var activeF  = 'none'; // current filter id
+  var activeS  = null;   // pending sticker emoji
+  var shooting = false;
+  var stream   = null;
+
+  /* ── date ────────────────────────────────────────── */
+  $('stripDate').textContent = new Date().toLocaleDateString('en-US', {
+    year: 'numeric', month: 'long', day: 'numeric'
+  });
+
+  /* ── filter CSS map ──────────────────────────────── */
+  var FCSS = {
+    'none':  'none',
+    'warm':  'sepia(50%) saturate(1.4) brightness(1.05)',
+    'soft':  'brightness(1.12) contrast(.88) saturate(.8)',
+    'vivid': 'saturate(1.7) contrast(1.1)',
+    'bw':    'grayscale(100%)',
+    'cool':  'hue-rotate(200deg) saturate(.75) brightness(1.1)'
+  };
+
+  /* ── START ───────────────────────────────────────── */
+  $('startBtn').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = '...';
+    $('errMsg').style.display = 'none';
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showErr('Camera API not supported. Please open this page in Safari.');
+      return;
+    }
+
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    }).then(function (s) {
+      stream = s;
+      var vid = $('videoEl');
+      vid.srcObject = s;
+      vid.setAttribute('playsinline', '');
+      vid.setAttribute('webkit-playsinline', '');
+      vid.play().then(function () {
+        $('startScreen').style.display = 'none';
+        $('app').style.display = 'block';
+      }).catch(function (e) {
+        showErr('Video play failed: ' + e.message);
+      });
+    }).catch(function (e) {
+      var msg = 'Camera error: ' + e.message;
+      if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError')
+        msg = 'Camera access denied. Go to Settings → Safari → Camera and set to Allow, then reload the page.';
+      else if (e.name === 'NotFoundError')
+        msg = 'No camera found on this device.';
+      else if (e.name === 'NotReadableError')
+        msg = 'Camera is busy. Close other apps using the camera and try again.';
+      showErr(msg);
+    });
+  });
+
+  function showErr(msg) {
+    var btn = $('startBtn');
+    btn.disabled = false;
+    btn.textContent = '📸 Try Again';
+    var el = $('errMsg');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  /* ── FILTERS ─────────────────────────────────────── */
+  document.querySelectorAll('.f-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.f-btn').forEach(function (b) { b.classList.remove('on'); });
+      this.classList.add('on');
+      activeF = this.dataset.f;
+      $('videoEl').style.filter = FCSS[activeF] || 'none';
+    });
+  });
+
+  /* ── SHOOT ───────────────────────────────────────── */
+  $('shootBtn').addEventListener('click', function () {
+    if (shooting || count >= 4) return;
+    shooting = true;
+    $('shootBtn').disabled = true;
+    $('shootBtn').textContent = '📸 Get ready...';
+    setTimeout(function () { tick(3); }, 800);
+  });
+
+  function tick(n) {
+    var el = $('countdownEl');
+    el.style.opacity = '1';
+    el.textContent = n;
+    if (n === 0) {
+      el.textContent = '🌸';
+      setTimeout(function () {
+        el.style.opacity = '0';
+        capturePhoto();
+      }, 380);
+      return;
+    }
+    setTimeout(function () { tick(n - 1); }, 900);
+  }
+
+  function capturePhoto() {
+    /* flash */
+    var fl = $('flashEl');
+    fl.style.opacity = '1';
+    setTimeout(function () { fl.style.opacity = '0'; }, 180);
+
+    var vid    = $('videoEl');
+    var canvas = $('canvas');
+    canvas.width  = vid.videoWidth  || 640;
+    canvas.height = vid.videoHeight || 480;
+    var ctx = canvas.getContext('2d');
+    ctx.save();
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.filter = FCSS[activeF] || 'none';
+    ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+    ctx.restore();
+
+    var url = canvas.toDataURL('image/jpeg', 0.92);
+    photos.push({ url: url, filter: activeF });
+
+    /* show in strip */
+    var slot = $('slot' + count);
+    var img  = $('img'  + count);
+    img.src = url;
+    img.className = 'f-' + activeF;
+    slot.classList.add('filled');
+
+    $('p' + count).classList.add('on');
+    count++;
+
+    if (count < 4) {
+      /* auto-start next countdown after a brief pause */
+      $('shootBtn').textContent = '✓ ' + count + ' / 4 — next in 2s...';
+      setTimeout(function () { tick(3); }, 2000);
+    } else {
+      shooting = false;
+      $('shootBtn').textContent = '✓ Strip Complete!';
+      $('shootBtn').disabled = true;
+      $('stickerPanel').style.display = 'flex';
+      $('actionRow').style.display    = 'flex';
+    }
+  }
+
+  /* ── STICKERS ────────────────────────────────────── */
+  document.querySelectorAll('.stk-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (activeS === this.dataset.s) {
+        activeS = null;
+        this.classList.remove('on');
+      } else {
+        document.querySelectorAll('.stk-btn').forEach(function (b) { b.classList.remove('on'); });
+        activeS = this.dataset.s;
+        this.classList.add('on');
+      }
+      /* update slot cursors */
+      for (var i = 0; i < 4; i++) {
+        var sl = $('slot' + i);
+        if (activeS && i < count) sl.classList.add('target');
+        else sl.classList.remove('target');
+      }
+    });
+  });
+
+  for (var i = 0; i < 4; i++) {
+    (function (idx) {
+      $('slot' + idx).addEventListener('click', function (e) {
+        if (!activeS || idx >= count) return;
+        var r  = this.getBoundingClientRect();
+        var xp = ((e.clientX - r.left)  / r.width  * 100).toFixed(2);
+        var yp = ((e.clientY - r.top)   / r.height * 100).toFixed(2);
+        var sp = document.createElement('span');
+        sp.className = 'stk-item';
+        sp.textContent = activeS;
+        sp.style.left = xp + '%';
+        sp.style.top  = yp + '%';
+        $('stk' + idx).appendChild(sp);
+      });
+    })(i);
+  }
+
+  /* ── RETAKE ──────────────────────────────────────── */
+  $('retakeBtn').addEventListener('click', function () {
+    count = 0; photos = []; activeS = null;
+    for (var i = 0; i < 4; i++) {
+      $('slot' + i).classList.remove('filled', 'target');
+      $('img'  + i).src = '';
+      $('img'  + i).className = '';
+      $('p'    + i).classList.remove('on');
+      $('stk'  + i).innerHTML = '';
+    }
+    document.querySelectorAll('.stk-btn').forEach(function (b) { b.classList.remove('on'); });
+    $('shootBtn').disabled = false;
+    $('shootBtn').textContent = '📷 Take Photo (0 / 4)';
+    $('stickerPanel').style.display = 'none';
+    $('actionRow').style.display    = 'none';
+  });
+
+  /* ── SAVE ────────────────────────────────────────── */
+  $('saveBtn').addEventListener('click', function () {
+    var W = 340, slotH = 210, gap = 10, pH = 22, pV = 22;
+    var headerH = 70, footerH = 55;
+    var totalW  = W + pH * 2;
+    var totalH  = pV + headerH + (slotH + gap) * 4 - gap + footerH + pV;
+
+    var out = document.createElement('canvas');
+    out.width  = totalW;
+    out.height = totalH;
+    var oc = out.getContext('2d');
+
+    /* background */
+    oc.fillStyle = '#fff8ee';
+    oc.fillRect(0, 0, totalW, totalH);
+
+    /* red side bars */
+    oc.fillStyle = '#c0392b';
+    oc.fillRect(0, 0, 8, totalH);
+    oc.fillRect(totalW - 8, 0, 8, totalH);
+
+    /* gold border */
+    oc.strokeStyle = '#f0c040'; oc.lineWidth = 2;
+    oc.strokeRect(10, 10, totalW - 20, totalH - 20);
+
+    /* header */
+    oc.fillStyle = '#c0392b';
+    oc.font = 'bold 20px serif';
+    oc.textAlign = 'center'; oc.textBaseline = 'alphabetic';
+    oc.fillText('VSA · TẾT 2026', totalW / 2, pV + 30);
+    oc.fillStyle = '#b8860b'; oc.font = '13px serif';
+    oc.fillText('🌺 Chúc Mừng Năm Mới 🌺', totalW / 2, pV + 52);
+    oc.strokeStyle = 'rgba(192,57,43,.25)'; oc.lineWidth = 1;
+    oc.beginPath();
+    oc.moveTo(pH + 10, pV + 62); oc.lineTo(totalW - pH - 10, pV + 62);
+    oc.stroke();
+
+    /* photos */
+    photos.forEach(function (p, i) {
+      var el  = $('img' + i);
+      if (!el || !el.src) return;
+      var x = pH, y = pV + headerH + i * (slotH + gap);
+      oc.fillStyle = '#e8d5c0';
+      oc.fillRect(x, y, W, slotH);
+      oc.filter = FCSS[p.filter] || 'none';
+      oc.drawImage(el, x, y, W, slotH);
+      oc.filter = 'none';
+
+      $('stk' + i).querySelectorAll('.stk-item').forEach(function (s) {
+        var lp = parseFloat(s.style.left) / 100;
+        var tp = parseFloat(s.style.top)  / 100;
+        oc.font = '26px serif';
+        oc.textAlign = 'center'; oc.textBaseline = 'middle';
+        oc.fillText(s.textContent, x + lp * W, y + tp * slotH);
+      });
+    });
+
+    /* footer */
+    var fy = pV + headerH + 4 * (slotH + gap) - gap;
+    oc.font = '22px serif'; oc.textAlign = 'center'; oc.textBaseline = 'top';
+    oc.fillText('🏮 🌸 🏮', totalW / 2, fy + 10);
+    oc.fillStyle = '#b8860b'; oc.font = '11px monospace'; oc.textBaseline = 'top';
+    oc.fillText($('stripDate').textContent, totalW / 2, fy + 38);
+
+    /* on iOS we can't auto-trigger download — open in new tab instead */
+    var dataUrl = out.toDataURL('image/jpeg', 0.95);
+    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (isIOS) {
+      var w = window.open();
+      w.document.write('<img src="' + dataUrl + '" style="max-width:100%"><p style="font-family:sans-serif;color:#888;font-size:14px;text-align:center;margin-top:10px;">Press and hold the image → Save to Photos</p>');
+    } else {
+      var a = document.createElement('a');
+      a.download = 'VSA-Tet-2025.jpg';
+      a.href = dataUrl;
+      a.click();
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
